@@ -30,6 +30,20 @@ class SQLAlchemyAdapter:
         if self.engine.dialect.name == "sqlite":
             self.db_path = connection_string.split("///")[1]
 
+    @staticmethod
+    def _validate_identifier(identifier: str):
+        """
+        Validates if a string is a valid SQL identifier: starts with letter or underscore,
+        followed by letters, numbers, or underscores. No quotes or special chars.
+        """
+        import re
+
+        if not isinstance(identifier, str):
+            raise ValueError("Identifier must be a string")
+        # SQL identifiers: letters, numbers, underscores; cannot start with digit
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", identifier):
+            raise ValueError(f"Invalid SQL identifier: {identifier}")
+
     @asynccontextmanager
     async def get_async_session(self) -> AsyncGenerator[AsyncSession, None]:
         async_session_maker = self.sessionmaker
@@ -67,6 +81,10 @@ class SQLAlchemyAdapter:
             await connection.close()
 
     async def delete_table(self, table_name: str, schema_name: Optional[str] = "public"):
+        # Validate identifiers to prevent SQL injection
+        self._validate_identifier(table_name)
+        if schema_name is not None:
+            self._validate_identifier(schema_name)
         async with self.engine.begin() as connection:
             if self.engine.dialect.name == "sqlite":
                 # SQLite doesn’t support schema namespaces and the CASCADE keyword.
